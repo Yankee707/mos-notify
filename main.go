@@ -400,6 +400,9 @@ func loadProviderConfigs(dir string) (map[string]ProviderConfig, error) {
     if f.IsDir() || !strings.HasSuffix(f.Name(), ".json") {
       continue
     }
+    if strings.HasPrefix(f.Name(), ".") {
+      continue
+    }
     if f.Name() == "email.json" {
       continue
     }
