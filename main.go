@@ -408,12 +408,14 @@ func loadProviderConfigs(dir string) (map[string]ProviderConfig, error) {
     }
     data, err := os.ReadFile(filepath.Join(dir, f.Name()))
     if err != nil {
-      return nil, fmt.Errorf("Config-Fehler %s: %v", f.Name(), err)
+      log.Printf("Warning: Could not load config %s: %v - Skipping", f.Name(), err)
+      continue
     }
     var cfg ProviderConfig
     if err := json.Unmarshal(data, &cfg); err != nil {
-      return nil, fmt.Errorf("Config-Fehler %s: %v", f.Name(), err)
-    }
+      log.Printf("Warning: Could not load config %s: %v - Skipping", f.Name(), err)
+      continue
+	}
     configs[strings.TrimSuffix(f.Name(), ".json")] = cfg
   }
   return configs, nil
