@@ -584,6 +584,10 @@ func sendToProvider(name string, cfg ProviderConfig, msg Message) {
   if cfg.Method == "" {
     cfg.Method = "POST"
   }
+  if strings.EqualFold(name, "ntfy") {
+    sendToNtfy(cfg, msg)
+    return
+  }
 
   mapped := msg.Priority
   if cfg.AlertMapping != nil {
@@ -637,6 +641,59 @@ func sendToProvider(name string, cfg ProviderConfig, msg Message) {
     log.Printf("[%s] Provider returned %s: %s", name, resp.Status, string(respBody))
   } else if verbose {
     log.Printf("[%s] Success: %s", name, resp.Status)
+  }
+}
+
+func sendToNtfy(cfg ProviderConfig, msg Message) {
+  priority := msg.Priority
+  if value, ok := cfg.AlertMapping[msg.Priority]; ok {
+    priority = fmt.Sprintf("%v", value)
+  }
+
+  data := buildTemplateData(msg, cfg, priority)
+  finalURL := renderTemplate(cfg.Url, data)
+  req, err := http.NewRequest(cfg.Method, finalURL, strings.NewReader(msg.Message))
+  if err != nil {
+    log.Printf("[ntfy] Error creating request: %v", err)
+    return
+  }
+
+  for key, value := range cfg.Headers {
+    switch {
+    case strings.EqualFold(key, "Content-Type"),
+      strings.EqualFold(key, "Title"),
+      strings.EqualFold(key, "Priority"):
+      continue
+    case strings.EqualFold(key, "Authorization") && strings.Contains(value, "{{.Token}}"):
+      token, _ := cfg.Token.(string)
+      if token == "" {
+        continue
+      }
+    }
+
+    req.Header.Set(key, renderTemplate(value, data))
+  }
+
+  req.Header.Set("Content-Type", "text/plain; charset=utf-8")
+  req.Header.Set("Title", msg.Title)
+  req.Header.Set("Priority", priority)
+
+  if verbose {
+    log.Printf("[ntfy] %s %s", cfg.Method, finalURL)
+  }
+
+  resp, err := http.DefaultClient.Do(req)
+  if err != nil {
+    log.Printf("[ntfy] Request failed: %v", err)
+    return
+  }
+  defer resp.Body.Close()
+
+  if resp.StatusCode >= 400 {
+    respBody, _ := io.ReadAll(resp.Body)
+    log.Printf("[ntfy] Provider returned %s: %s", resp.Status, string(respBody))
+  } else if verbose {
+    log.Printf("[ntfy] Success: %s", resp.Status)
   }
 }
 
